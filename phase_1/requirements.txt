@@ -1,0 +1,2 @@
+# Phase 1 - Todo Console Application Dependencies
+rich>=13.7.0
