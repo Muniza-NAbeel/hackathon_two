@@ -554,22 +554,59 @@ def _parse_natural_date(date_str: str) -> datetime | None:
 
 def listen_command() -> str:
     """
-    Placeholder for voice input functionality.
+    Capture voice input using speech recognition and convert to text.
 
-    In a full implementation, this would use speech recognition libraries
-    (e.g., SpeechRecognition, Google Speech API, etc.) to capture voice input.
-
-    For now, falls back to text input.
+    Uses Google Speech Recognition API (free, no API key required).
+    Falls back to text input if voice recognition fails.
 
     Returns:
         Voice command as text string
 
     Maps to: VFR-003
     """
-    # Graceful fallback to text input when voice recognition is unavailable
-    print("Voice recognition unavailable. Using text input fallback.")
-    print("Enter your command: ", end="")
-    return input().strip()
+    try:
+        import speech_recognition as sr
+
+        # Initialize recognizer
+        recognizer = sr.Recognizer()
+
+        # Adjust for ambient noise and listen
+        with sr.Microphone() as source:
+            print("🎤 Listening... (speak now)")
+
+            # Adjust for ambient noise (1 second)
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+
+            # Listen for audio with timeout
+            try:
+                audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+                print("⏳ Processing speech...")
+            except sr.WaitTimeoutError:
+                print("⚠️  No speech detected. Using text input fallback.")
+                print("Enter your command: ", end="")
+                return input().strip()
+
+        # Recognize speech using Google Speech Recognition
+        try:
+            command = recognizer.recognize_google(audio)
+            print(f"✅ Heard: \"{command}\"")
+            return command
+        except sr.UnknownValueError:
+            print("⚠️  Could not understand audio. Using text input fallback.")
+            print("Enter your command: ", end="")
+            return input().strip()
+        except sr.RequestError as e:
+            print(f"⚠️  Speech recognition service error: {e}")
+            print("Using text input fallback.")
+            print("Enter your command: ", end="")
+            return input().strip()
+
+    except (ImportError, OSError, AttributeError) as e:
+        # Library not installed, microphone not available, or other error
+        print(f"⚠️  Voice recognition unavailable: {e}")
+        print("Using text input fallback.")
+        print("Enter your command: ", end="")
+        return input().strip()
 
 
 def check_voice_available() -> bool:

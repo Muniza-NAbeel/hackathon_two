@@ -1,2 +1,4 @@
 # Phase 1 - Todo Console Application Dependencies
 rich>=13.7.0
+SpeechRecognition>=3.10.0
+PyAudio>=0.2.13

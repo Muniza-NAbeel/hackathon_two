@@ -53,6 +53,7 @@ from src.voice import (
     parse_voice_command,
     validate_voice_command,
     check_voice_available,
+    listen_command,
 )
 
 
@@ -902,7 +903,12 @@ def handle_voice_command(storage: TaskStorage) -> None:
     console.print()
 
     # Get command input (voice or text fallback)
-    command_str = prompt_input("Your command:")
+    if voice_available:
+        # Use actual voice recognition
+        command_str = listen_command()
+    else:
+        # Use text input fallback
+        command_str = prompt_input("Your command:")
 
     if not command_str.strip():
         print_error("No command entered.")

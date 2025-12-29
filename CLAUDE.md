@@ -249,3 +249,10 @@ Claude MUST use the `voice-command-agent` if available.
 
 Direct implementation of voice parsing is NOT allowed
 when this agent exists.
+
+## Active Technologies
+- Python 3.11+ (Backend), TypeScript (Frontend) + FastAPI, SQLModel, Next.js 14+, Tailwind CSS, Better Auth (002-todo-fullstack-web-app)
+- Neon Serverless PostgreSQL (002-todo-fullstack-web-app)
+
+## Recent Changes
+- 002-todo-fullstack-web-app: Added Python 3.11+ (Backend), TypeScript (Frontend) + FastAPI, SQLModel, Next.js 14+, Tailwind CSS, Better Auth
