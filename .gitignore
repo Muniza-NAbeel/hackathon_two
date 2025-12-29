@@ -23,11 +23,16 @@ wheels/
 phase_1/lib/
 phase_1/Lib/
 
+# Phase 1 virtual environment (Windows)
+phase_1/.venv-windows/
+
 # Virtual environments
 .venv/
+.venv-windows/
 venv/
 ENV/
 env/
+.venv-*/
 
 # UV package manager
 .uv/
