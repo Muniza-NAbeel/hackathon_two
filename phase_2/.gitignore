@@ -25,6 +25,13 @@ venv/
 ENV/
 .venv-windows
 
+# Virtual environments
+.venv/
+.venv-windows/
+venv/
+ENV/
+env/
+
 # Node.js
 node_modules/
 .npm

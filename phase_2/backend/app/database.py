@@ -19,6 +19,7 @@ engine = create_async_engine(
     pool_size=5,  # Smaller pool for serverless
     max_overflow=10,
     pool_recycle=300,  # Recycle connections after 5 minutes
+    connect_args={"ssl": "require"},  # SSL required for Neon
 )
 
 # Create async session factory
