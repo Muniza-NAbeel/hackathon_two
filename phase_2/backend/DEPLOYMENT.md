@@ -64,7 +64,7 @@ Render dashboard mein **"Environment"** tab pe jayen aur ye variables add karein
 
 | Key | Value | Notes |
 |-----|-------|-------|
-| `DATABASE_URL` | `postgresql+asyncpg://user:pass@host/db?sslmode=require` | Apna Neon database URL paste karein |
+| `DATABASE_URL` | `postgresql+asyncpg://user:pass@host/db` | Apna Neon database URL paste karein (**asyncpg ssl=True use karta hai**) |
 | `BETTER_AUTH_SECRET` | (Auto-generate karein ya custom) | Minimum 32 characters |
 | `ALLOWED_ORIGINS` | `https://your-frontend.vercel.app,http://localhost:3000` | Frontend URL yahan add karein |
 | `PYTHON_VERSION` | `3.11.0` | Python version |
@@ -137,7 +137,7 @@ Vercel dashboard mein:
 **Solution:**
 - `DATABASE_URL` correct hai check karein
 - Neon database ka format: `postgresql+asyncpg://...`
-- SSL mode `?sslmode=require` jaroor ho
+- **IMPORTANT:** `?sslmode=require` mat add karein - asyncpg driver `ssl=True` use karta hai connect_args mein
 
 ### Issue 3: CORS Error
 **Solution:**

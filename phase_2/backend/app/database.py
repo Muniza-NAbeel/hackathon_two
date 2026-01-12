@@ -19,7 +19,14 @@ engine = create_async_engine(
     pool_size=5,  # Smaller pool for serverless
     max_overflow=10,
     pool_recycle=300,  # Recycle connections after 5 minutes
-    connect_args={"ssl": "require"},  # SSL required for Neon
+    connect_args={
+        "ssl": True,  # Enable SSL for Neon (asyncpg expects bool or SSLContext)
+        "timeout": 30,  # Connection timeout in seconds
+        "command_timeout": 30,  # Command timeout in seconds
+        "server_settings": {
+            "application_name": "todo_app",
+        },
+    },
 )
 
 # Create async session factory

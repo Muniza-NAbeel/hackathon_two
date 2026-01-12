@@ -26,7 +26,13 @@ phase_1/Lib/
 # Phase 1 virtual environment (Windows)
 phase_1/.venv-windows/
 
-# Virtual environments
+# Virtual environments (anywhere in project)
+**/.venv/
+**/.venv-windows/
+**/venv/
+**/ENV/
+**/env/
+**/.venv-*/
 .venv/
 .venv-windows/
 venv/
@@ -66,3 +72,6 @@ htmlcov/
 # Temporary files
 *.tmp
 *.temp
+
+# Node.js (anywhere in project)
+**/node_modules/

@@ -29,6 +29,16 @@ ENV PYTHONUNBUFFERED=1
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:7860/health || exit 1
 
-# Run database migrations and start server
-CMD alembic upgrade head && \
+# Startup script to check environment and run migrations
+CMD echo "===== Application Startup at $(date '+%Y-%m-%d %H:%M:%S') =====" && \
+    echo "Checking environment variables..." && \
+    if [ -z "$DATABASE_URL" ]; then \
+        echo "ERROR: DATABASE_URL environment variable is not set!"; \
+        echo "Please set DATABASE_URL in Hugging Face Spaces settings."; \
+        exit 1; \
+    fi && \
+    echo "DATABASE_URL is set (host: $(echo $DATABASE_URL | cut -d'@' -f2 | cut -d'/' -f1))" && \
+    echo "Running database migrations..." && \
+    alembic upgrade head && \
+    echo "Starting FastAPI server..." && \
     uvicorn app.main:app --host $HOST --port $PORT

@@ -50,7 +50,8 @@ A RESTful API for multi-user task management with JWT authentication.
 Required environment variables (set in Hugging Face Space settings):
 
 ```env
-DATABASE_URL=postgresql+asyncpg://user:password@host/db?sslmode=require
+# Note: asyncpg uses ssl=True in connect_args, do not add ?sslmode=require
+DATABASE_URL=postgresql+asyncpg://user:password@host/db
 BETTER_AUTH_SECRET=your-secret-key-min-32-characters
 ALLOWED_ORIGINS=https://your-frontend.vercel.app,http://localhost:3000
 DEBUG=false

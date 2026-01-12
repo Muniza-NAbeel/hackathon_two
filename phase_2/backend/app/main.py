@@ -1,5 +1,6 @@
 """FastAPI application entry point with CORS middleware."""
 
+import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
@@ -9,6 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import init_db
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 settings = get_settings()
 
 
@@ -16,9 +24,20 @@ settings = get_settings()
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan events."""
     # Startup
-    await init_db()
+    logger.info("Starting application startup sequence...")
+    try:
+        logger.info("Initializing database connection...")
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        logger.error("Database connection details (without password):")
+        db_url_safe = settings.database_url.split("@")[-1] if "@" in settings.database_url else "unknown"
+        logger.error(f"  Host: {db_url_safe}")
+        raise
     yield
     # Shutdown
+    logger.info("Application shutdown complete")
 
 
 app = FastAPI(

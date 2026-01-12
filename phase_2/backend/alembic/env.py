@@ -1,6 +1,8 @@
 """Alembic environment configuration for async SQLModel."""
 
 import asyncio
+import os
+import sys
 from logging.config import fileConfig
 
 from alembic import context
@@ -16,8 +18,24 @@ from app.models import Task, User  # noqa: F401 - Import models for metadata
 config = context.config
 
 # Override sqlalchemy.url with our settings
-settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# First try to get from environment directly (for Hugging Face Spaces)
+database_url = os.environ.get("DATABASE_URL")
+
+if not database_url:
+    # Fallback to settings
+    settings = get_settings()
+    database_url = settings.database_url
+
+# Debug logging
+print(f"[ALEMBIC DEBUG] DATABASE_URL source: {'os.environ' if os.environ.get('DATABASE_URL') else 'settings'}", file=sys.stderr)
+print(f"[ALEMBIC DEBUG] DATABASE_URL (masked): {database_url.split('@')[-1] if '@' in database_url else 'INVALID'}", file=sys.stderr)
+
+if not database_url or database_url == "postgresql+asyncpg://localhost/todo_db":
+    print("[ALEMBIC ERROR] DATABASE_URL not set or using default value!", file=sys.stderr)
+    print("[ALEMBIC ERROR] Available env vars:", list(os.environ.keys()), file=sys.stderr)
+    raise ValueError("DATABASE_URL environment variable is not set properly")
+
+config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
@@ -55,6 +73,11 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={
+            "ssl": True,  # Enable SSL for Neon
+            "timeout": 30,  # Connection timeout
+            "command_timeout": 30,  # Command timeout
+        },
     )
 
     async with connectable.connect() as connection:

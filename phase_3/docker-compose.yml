@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Neon Serverless simulation for local dev)
+  db:
+    image: postgres:16-alpine
+    container_name: phase3_db
+    environment:
+      POSTGRES_USER: phase3_user
+      POSTGRES_PASSWORD: phase3_password
+      POSTGRES_DB: phase3_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase3_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # MCP Server (Task Tools)
+  mcp:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    container_name: phase3_mcp
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://phase3_user:phase3_password@db:5432/phase3_db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./mcp:/app
+    command: python server.py
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: phase3_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://phase3_user:phase3_password@db:5432/phase3_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - MCP_SERVER_URL=http://mcp:8001
+    depends_on:
+      db:
+        condition: service_healthy
+      mcp:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: phase3_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_OPENAI_DOMAIN_KEY=${NEXT_PUBLIC_OPENAI_DOMAIN_KEY}
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: phase3_network

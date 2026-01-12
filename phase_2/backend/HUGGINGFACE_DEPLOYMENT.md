@@ -119,11 +119,20 @@ git push huggingface main
 
 ### Add These Secrets:
 
+**⚠️ CRITICAL: NO QUOTES around values!**
+
 | Secret Name | Value | Example |
 |------------|-------|---------|
-| `DATABASE_URL` | Neon PostgreSQL URL | `postgresql+asyncpg://user:pass@ep-xxx.aws.neon.tech/db?sslmode=require` |
-| `BETTER_AUTH_SECRET` | Random 32+ character string | `abcd1234efgh5678ijkl9012mnop3456` |
+| `DATABASE_URL` | Neon PostgreSQL URL (**NO QUOTES!** - asyncpg uses `ssl=True` in connect_args) | `postgresql+asyncpg://user:pass@ep-xxx.aws.neon.tech/db` |
+| `BETTER_AUTH_SECRET` | Random 32+ character string (**NO QUOTES!**) | `abcd1234efgh5678ijkl9012mnop3456` |
 | `ALLOWED_ORIGINS` | Frontend URLs (comma-separated) | `https://your-app.vercel.app,http://localhost:3000` |
+
+**⚠️ Common Mistake:**
+```
+❌ WRONG: 'postgresql+asyncpg://...'  (has quotes)
+❌ WRONG: "postgresql+asyncpg://..."  (has quotes)
+✅ CORRECT: postgresql+asyncpg://...  (no quotes)
+```
 
 ### Secret Generate Karne Ka Tareeqa:
 
@@ -221,7 +230,45 @@ https://your-app.vercel.app
 
 ## 🐛 Troubleshooting
 
-### Issue 1: Build Fails - "requirements.txt not found"
+### Issue 1: "Could not parse SQLAlchemy URL" ⚠️ MOST COMMON
+
+**Error Message:**
+```
+sqlalchemy.exc.ArgumentError: Could not parse SQLAlchemy URL from given URL string
+```
+
+**Root Cause:** DATABASE_URL environment variable has quotes or is not set
+
+**Solution (Step-by-step):**
+
+1. **Check Hugging Face Space Settings:**
+   - Go to Settings → Repository secrets
+   - Find `DATABASE_URL`
+   - **CRITICAL**: Value should have **NO quotes**
+
+2. **Correct Format (asyncpg uses ssl=True in connect_args, not ?sslmode=require):**
+   ```
+   ✅ postgresql+asyncpg://neondb_owner:password@ep-xxx.neon.tech/neondb
+
+   ❌ postgresql+asyncpg://...?sslmode=require  (WRONG - asyncpg doesn't support sslmode)
+   ❌ 'postgresql+asyncpg://...'  (WRONG - has quotes)
+   ❌ "postgresql+asyncpg://..."  (WRONG - has quotes)
+   ```
+
+3. **If you see this in logs:**
+   ```
+   [ALEMBIC ERROR] DATABASE_URL not set or using default value!
+   [ALEMBIC ERROR] Available env vars: [...]
+   ```
+   This means the environment variable is not being passed to the container.
+
+4. **Fix Steps:**
+   - Delete the old `DATABASE_URL` secret
+   - Create new secret WITHOUT quotes
+   - Restart the Space (Settings → Factory reboot)
+   - Check logs for: `[ALEMBIC DEBUG] DATABASE_URL source: os.environ`
+
+### Issue 2: Build Fails - "requirements.txt not found"
 
 **Solution:**
 ```bash
@@ -231,14 +278,21 @@ ls -la requirements.txt
 # Agar missing hai to check karein path
 ```
 
-### Issue 2: Database Connection Error
+### Issue 3: Database Connection Timeout
+
+**Error Message:**
+```
+asyncio.exceptions.CancelledError
+TimeoutError
+```
 
 **Solution:**
-- `DATABASE_URL` secret check karein
-- Neon database URL format: `postgresql+asyncpg://...?sslmode=require`
-- SSL mode **required** hai
+- Neon database sleeping ho sakta hai (free tier)
+- Neon Console → Projects → Resume database
+- Check connection string is for **Pooled connection** (has `-pooler` in hostname)
+- **IMPORTANT:** Do NOT add `?sslmode=require` - asyncpg uses `ssl=True` in connect_args instead
 
-### Issue 3: Port 7860 Error
+### Issue 4: Port 7860 Error
 
 **Solution:**
 Dockerfile mein port 7860 use karna **mandatory** hai Hugging Face ke liye:
