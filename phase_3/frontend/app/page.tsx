@@ -145,7 +145,7 @@ export default function LandingPage() {
             <h2 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white mb-6">
               <span className="block">Organize Your Future,</span>
               <span className="block mt-2 bg-gradient-to-r from-neon-purple via-neon-blue to-neon-cyan bg-clip-text text-transparent">
-              Powered by AI Assistant
+              Powered by AI Assistant .
               </span>
             </h2>
           </motion.div>
@@ -205,7 +205,7 @@ export default function LandingPage() {
           transition={{ duration: 0.6 }}
         >
           <h3 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Smart Features for Smarter Productivity
+            Smart Features for Smarter Productivity!
           </h3>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
            Everything you need to manage tasks efficiently — enhanced with an intelligent AI assistant.
