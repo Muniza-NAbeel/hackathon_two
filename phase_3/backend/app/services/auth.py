@@ -14,7 +14,13 @@ from app.models.user import User
 from app.schemas.user import UserRegister
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt__truncate_error=False allows passwords longer than 72 bytes
+# by silently truncating instead of raising an error
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__truncate_error=False,
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
