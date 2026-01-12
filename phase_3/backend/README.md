@@ -1,63 +1,43 @@
+---
+title: Todo App Ai Assistant
+emoji: ⚡
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 # Phase 3 Backend - AI-Powered Chatbot API
 
 FastAPI backend for AI-powered task management chatbot using OpenAI Agents SDK and MCP tools.
 
-## Setup
+## API Endpoints
 
-### Using UV (Recommended - Fast!)
+- `GET /` - Root endpoint
+- `GET /health` - Health check
+- `GET /docs` - Swagger UI documentation
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/{user_id}/tasks` - Get user tasks
+- `POST /api/{user_id}/chat` - AI Chat endpoint
 
-```bash
-# Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
+## Environment Variables
 
-# Create virtual environment and install dependencies
-cd phase_3/backend
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -r requirements.txt
-```
+Configure in Hugging Face Space Settings > Secrets:
 
-### Using pip (Traditional)
+- `DATABASE_URL` - PostgreSQL connection string (Neon)
+- `OPENAI_API_KEY` - OpenAI API key
+- `JWT_SECRET` - Secret for JWT tokens
+- `CORS_ORIGINS` - Allowed frontend origins
+
+## Local Development
 
 ```bash
 cd phase_3/backend
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## Environment Variables
-
-Create `.env` file in `phase_3/` root:
-
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/phase3_db
-OPENAI_API_KEY=sk-your-key-here
-JWT_SECRET=your-jwt-secret
-MCP_SERVER_URL=http://localhost:8001
-```
-
-## Run Development Server
-
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-## Run Tests
-
-```bash
-pytest
-pytest --cov  # With coverage
-```
-
-## Project Structure
-
-```
-app/
-├── api/              # API endpoints
-├── auth/             # JWT authentication
-├── db/               # Database session and migrations
-├── models/           # SQLModel database models
-├── services/         # Business logic (AI agent, conversation loader)
-└── config.py         # Configuration management
+uvicorn app.main:app --reload --port 8000
 ```
