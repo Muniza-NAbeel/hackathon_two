@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-frontend          # mandatory
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:                    # ✅ selector yahan spec ke andar
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend          # ✅ ye labels selector se match hone chahiye
+    spec:
+      containers:
+        - name: frontend
+          image: todo-frontend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: http://todo-backend:8000
