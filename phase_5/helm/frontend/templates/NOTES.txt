@@ -1,0 +1,25 @@
+Frontend deployment successful!
+
+1. Get the frontend URL:
+{{- if eq .Values.service.type "NodePort" }}
+   export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "frontend.fullname" . }})
+   export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+   echo http://$NODE_IP:$NODE_PORT
+
+   Or use Minikube to open in browser:
+   minikube service {{ include "frontend.fullname" . }}
+{{- else if eq .Values.service.type "ClusterIP" }}
+   kubectl port-forward svc/{{ include "frontend.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+{{- end }}
+
+2. View logs:
+   kubectl logs -l app=frontend
+
+3. Check pod status:
+   kubectl get pods -l app=frontend
+
+4. Test the Todo AI Chatbot:
+   - Navigate to the frontend URL
+   - Login with your credentials
+   - Send "Add task: Test deployment" to the chatbot
+   - Verify the task appears in your task list

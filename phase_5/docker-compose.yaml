@@ -1,0 +1,193 @@
+services:
+  # ==========================================================================
+  # Infrastructure Services
+  # ==========================================================================
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: todoapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dapr-network
+
+  # Redis (State Store for Dapr)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dapr-network
+
+  # Redpanda (Kafka-compatible message broker)
+  redpanda:
+    image: redpandadata/redpanda:v23.3.5
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dapr-network
+
+  # ==========================================================================
+  # Application Services (with Dapr sidecars)
+  # ==========================================================================
+
+  chat-backend:
+    build:
+      context: ./backend
+      dockerfile: ./Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override DATABASE_URL for Docker network (postgres container)
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/todoapp
+      # Dapr configuration
+      DAPR_HTTP_PORT: "3500"
+      DAPR_PUBSUB_NAME: kafka-pubsub
+      TASK_EVENTS_TOPIC: task-events
+      REMINDERS_TOPIC: reminders
+      EVENTS_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - dapr-network
+
+  chat-backend-dapr:
+    image: daprio/daprd:1.12.0
+    command: ["./daprd",
+      "-app-id", "chat-backend",
+      "-app-port", "8000",
+      "-dapr-http-port", "3500",
+      "-components-path", "/components",
+      "-log-level", "info"
+    ]
+    volumes:
+      - ./dapr:/components
+    network_mode: "service:chat-backend"
+    depends_on:
+      - chat-backend
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+    ports:
+      - "8001:8001"
+    environment:
+      DAPR_HTTP_PORT: "3500"
+      DAPR_PUBSUB_NAME: kafka-pubsub
+      REMINDERS_TOPIC: reminders
+      DAPR_STATE_STORE: statestore
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dapr-network
+
+  notification-service-dapr:
+    image: daprio/daprd:1.12.0
+    command: ["./daprd",
+      "-app-id", "notification-service",
+      "-app-port", "8001",
+      "-dapr-http-port", "3500",
+      "-components-path", "/components",
+      "-log-level", "info"
+    ]
+    volumes:
+      - ./dapr:/components
+    network_mode: "service:notification-service"
+    depends_on:
+      - notification-service
+
+  recurring-task-service:
+    build:
+      context: ./services/recurring-task-service
+    ports:
+      - "8002:8002"
+    environment:
+      DAPR_HTTP_PORT: "3500"
+      DAPR_PUBSUB_NAME: kafka-pubsub
+      TASK_EVENTS_TOPIC: task-events
+      BACKEND_APP_ID: chat-backend
+      DAPR_STATE_STORE: statestore
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dapr-network
+
+  recurring-task-service-dapr:
+    image: daprio/daprd:1.12.0
+    command: ["./daprd",
+      "-app-id", "recurring-task-service",
+      "-app-port", "8002",
+      "-dapr-http-port", "3500",
+      "-components-path", "/components",
+      "-log-level", "info"
+    ]
+    volumes:
+      - ./dapr:/components
+    network_mode: "service:recurring-task-service"
+    depends_on:
+      - recurring-task-service
+
+  # ==========================================================================
+  # Frontend
+  # ==========================================================================
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - chat-backend
+
+networks:
+  dapr-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

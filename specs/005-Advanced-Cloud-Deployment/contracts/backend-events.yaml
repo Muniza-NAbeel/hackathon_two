@@ -1,0 +1,312 @@
+openapi: 3.1.0
+info:
+  title: Chat Backend - Event Publishing API
+  description: |
+    Phase 5 extensions to the Chat Backend for event publishing.
+    Adds endpoints for event emission, reminder cron handling, and internal service communication.
+  version: 1.0.0
+  contact:
+    name: Phase 5 Development
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: http://chat-backend.todo-app.svc.cluster.local:8000
+    description: Kubernetes (internal)
+
+paths:
+  /reminder-cron:
+    post:
+      summary: Process pending reminders
+      description: |
+        Called by Dapr cron binding every 5 minutes.
+        Queries tasks with remind_at <= now and reminder_sent = false,
+        publishes reminder events, and marks reminders as sent.
+      operationId: processReminders
+      tags:
+        - Internal
+      security: []  # No auth - internal Dapr call
+      responses:
+        '200':
+          description: Reminders processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderCheckResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/internal/tasks:
+    post:
+      summary: Create task (internal service)
+      description: |
+        Internal endpoint for service-to-service task creation.
+        Used by Recurring Task Service to create next task instance.
+        Authenticated via Dapr mTLS, no JWT required.
+      operationId: createInternalTask
+      tags:
+        - Internal
+      security: []  # Dapr mTLS authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalTaskCreate'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalTaskResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+
+  /dapr/subscribe:
+    get:
+      summary: Dapr subscription declaration
+      description: |
+        Declares pub/sub subscriptions for the backend service.
+        Called by Dapr sidecar on startup.
+      operationId: getDaprSubscriptions
+      tags:
+        - Dapr
+      security: []
+      responses:
+        '200':
+          description: Subscription list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DaprSubscription'
+              example:
+                - pubsubname: kafka-pubsub
+                  topic: task-updates
+                  route: /events/task-updates
+
+components:
+  schemas:
+    ReminderCheckResponse:
+      type: object
+      required:
+        - processed
+        - errors
+        - next_check
+      properties:
+        processed:
+          type: integer
+          description: Number of reminders sent
+          example: 5
+        errors:
+          type: integer
+          description: Number of failures
+          example: 0
+        next_check:
+          type: string
+          format: date-time
+          description: Expected next cron trigger
+          example: "2026-01-18T10:05:00Z"
+
+    InternalTaskCreate:
+      type: object
+      required:
+        - user_id
+        - title
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: User ID for the new task
+        title:
+          type: string
+          maxLength: 200
+          description: Task title
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+          default: medium
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
+          default: none
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        remind_at:
+          type: string
+          format: date-time
+          nullable: true
+        source_task_id:
+          type: integer
+          nullable: true
+          description: Original recurring task ID
+
+    InternalTaskResponse:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - status
+        - created_at
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    DaprSubscription:
+      type: object
+      required:
+        - pubsubname
+        - topic
+        - route
+      properties:
+        pubsubname:
+          type: string
+          example: kafka-pubsub
+        topic:
+          type: string
+          example: task-events
+        route:
+          type: string
+          example: /events/task
+
+    TaskEvent:
+      type: object
+      description: CloudEvents-formatted task event
+      required:
+        - specversion
+        - type
+        - source
+        - id
+        - time
+        - data
+      properties:
+        specversion:
+          type: string
+          const: "1.0"
+        type:
+          type: string
+          enum:
+            - com.todo.task.created
+            - com.todo.task.updated
+            - com.todo.task.completed
+            - com.todo.task.deleted
+        source:
+          type: string
+          example: /services/chat-backend
+        id:
+          type: string
+          format: uuid
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          type: string
+          const: application/json
+        userid:
+          type: string
+          format: uuid
+        taskid:
+          type: integer
+        data:
+          $ref: '#/components/schemas/TaskEventData'
+
+    TaskEventData:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - status
+        - completed
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        completed:
+          type: boolean
+        priority:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        recurrence:
+          type: string
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        remind_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+tags:
+  - name: Internal
+    description: Internal service endpoints (no external access)
+  - name: Dapr
+    description: Dapr integration endpoints

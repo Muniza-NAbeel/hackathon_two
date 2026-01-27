@@ -75,3 +75,8 @@ htmlcov/
 
 # Node.js (anywhere in project)
 **/node_modules/
+
+# Sensitive files that should not be committed
+phase_5/backend/.env
+phase_5/frontend/.env.local
+phase_5/k8s/base/secrets.yaml

@@ -1,0 +1,314 @@
+openapi: 3.1.0
+info:
+  title: Recurring Task Service API
+  description: |
+    Phase 5 Recurring Task Service - Consumes task completion events from Kafka
+    and creates next instances of recurring tasks via Dapr service invocation.
+  version: 1.0.0
+  contact:
+    name: Phase 5 Development
+
+servers:
+  - url: http://localhost:8002
+    description: Local development
+  - url: http://recurring-task-service.todo-app.svc.cluster.local:8002
+    description: Kubernetes (internal)
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns ready when Dapr sidecar and Kafka connection are available
+      operationId: readinessCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Service not ready
+
+  /dapr/subscribe:
+    get:
+      summary: Dapr subscription declaration
+      description: Declares subscription to task-events topic
+      operationId: getDaprSubscriptions
+      tags:
+        - Dapr
+      responses:
+        '200':
+          description: Subscription list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DaprSubscription'
+              example:
+                - pubsubname: kafka-pubsub
+                  topic: task-events
+                  route: /events/task
+
+  /events/task:
+    post:
+      summary: Handle task event
+      description: |
+        Receives task events from Kafka via Dapr pub/sub.
+        Filters for task_completed events with recurring rules.
+        Creates next task instance via Dapr service invocation.
+      operationId: handleTaskEvent
+      tags:
+        - Events
+      security: []  # Internal Dapr call
+      requestBody:
+        required: true
+        content:
+          application/cloudevents+json:
+            schema:
+              $ref: '#/components/schemas/TaskEvent'
+      responses:
+        '200':
+          description: Event processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventProcessingResponse'
+        '204':
+          description: Event skipped (not recurring or already processed)
+        '400':
+          description: Invalid event format
+        '500':
+          description: Processing failed
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes service metrics for monitoring
+      operationId: getMetrics
+      tags:
+        - Observability
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        service:
+          type: string
+          const: recurring-task-service
+        version:
+          type: string
+        uptime_seconds:
+          type: number
+
+    ReadinessResponse:
+      type: object
+      required:
+        - ready
+        - checks
+      properties:
+        ready:
+          type: boolean
+        checks:
+          type: object
+          properties:
+            dapr_sidecar:
+              type: boolean
+            kafka_connection:
+              type: boolean
+            state_store:
+              type: boolean
+            backend_service:
+              type: boolean
+              description: Can reach chat-backend via Dapr
+
+    DaprSubscription:
+      type: object
+      required:
+        - pubsubname
+        - topic
+        - route
+      properties:
+        pubsubname:
+          type: string
+        topic:
+          type: string
+        route:
+          type: string
+
+    TaskEvent:
+      type: object
+      description: CloudEvents task event from Kafka
+      required:
+        - specversion
+        - type
+        - source
+        - id
+        - time
+        - data
+      properties:
+        specversion:
+          type: string
+          const: "1.0"
+        type:
+          type: string
+          enum:
+            - com.todo.task.created
+            - com.todo.task.updated
+            - com.todo.task.completed
+            - com.todo.task.deleted
+        source:
+          type: string
+        id:
+          type: string
+          format: uuid
+          description: Event ID for idempotency
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          type: string
+          const: application/json
+        userid:
+          type: string
+          format: uuid
+        taskid:
+          type: integer
+        data:
+          $ref: '#/components/schemas/TaskEventData'
+
+    TaskEventData:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - status
+        - completed
+        - recurrence
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        completed:
+          type: boolean
+        priority:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
+          description: Recurrence rule - determines if next task created
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        remind_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EventProcessingResponse:
+      type: object
+      required:
+        - status
+        - event_id
+      properties:
+        status:
+          type: string
+          enum: [processed, skipped, error]
+        event_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          description: Human-readable status message
+        new_task_id:
+          type: integer
+          nullable: true
+          description: ID of newly created recurring task
+        next_due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date of the newly created task
+        processed_at:
+          type: string
+          format: date-time
+
+    RecurrenceCalculation:
+      type: object
+      description: Internal model for recurrence calculation
+      properties:
+        original_due_date:
+          type: string
+          format: date-time
+        recurrence_rule:
+          type: string
+          enum: [daily, weekly, monthly]
+        next_due_date:
+          type: string
+          format: date-time
+        calculation_method:
+          type: string
+          description: How next date was calculated
+
+tags:
+  - name: Health
+    description: Health and readiness endpoints
+  - name: Dapr
+    description: Dapr integration endpoints
+  - name: Events
+    description: Event handling endpoints
+  - name: Observability
+    description: Monitoring and metrics

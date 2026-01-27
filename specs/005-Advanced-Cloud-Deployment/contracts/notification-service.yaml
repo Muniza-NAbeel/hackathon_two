@@ -1,0 +1,260 @@
+openapi: 3.1.0
+info:
+  title: Notification Service API
+  description: |
+    Phase 5 Notification Service - Consumes reminder events from Kafka
+    and delivers notifications. Implements idempotent event processing.
+  version: 1.0.0
+  contact:
+    name: Phase 5 Development
+
+servers:
+  - url: http://localhost:8001
+    description: Local development
+  - url: http://notification-service.todo-app.svc.cluster.local:8001
+    description: Kubernetes (internal)
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns ready when Dapr sidecar and Kafka connection are available
+      operationId: readinessCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Service not ready
+
+  /dapr/subscribe:
+    get:
+      summary: Dapr subscription declaration
+      description: Declares subscription to reminders topic
+      operationId: getDaprSubscriptions
+      tags:
+        - Dapr
+      responses:
+        '200':
+          description: Subscription list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DaprSubscription'
+              example:
+                - pubsubname: kafka-pubsub
+                  topic: reminders
+                  route: /events/reminder
+
+  /events/reminder:
+    post:
+      summary: Handle reminder event
+      description: |
+        Receives reminder events from Kafka via Dapr pub/sub.
+        Implements idempotent processing using Dapr state store.
+      operationId: handleReminderEvent
+      tags:
+        - Events
+      security: []  # Internal Dapr call
+      requestBody:
+        required: true
+        content:
+          application/cloudevents+json:
+            schema:
+              $ref: '#/components/schemas/ReminderEvent'
+      responses:
+        '200':
+          description: Event processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventProcessingResponse'
+        '204':
+          description: Event already processed (idempotent skip)
+        '400':
+          description: Invalid event format
+        '500':
+          description: Processing failed
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes service metrics for monitoring
+      operationId: getMetrics
+      tags:
+        - Observability
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        service:
+          type: string
+          const: notification-service
+        version:
+          type: string
+        uptime_seconds:
+          type: number
+
+    ReadinessResponse:
+      type: object
+      required:
+        - ready
+        - checks
+      properties:
+        ready:
+          type: boolean
+        checks:
+          type: object
+          properties:
+            dapr_sidecar:
+              type: boolean
+            kafka_connection:
+              type: boolean
+            state_store:
+              type: boolean
+
+    DaprSubscription:
+      type: object
+      required:
+        - pubsubname
+        - topic
+        - route
+      properties:
+        pubsubname:
+          type: string
+        topic:
+          type: string
+        route:
+          type: string
+
+    ReminderEvent:
+      type: object
+      description: CloudEvents reminder event from Kafka
+      required:
+        - specversion
+        - type
+        - source
+        - id
+        - time
+        - data
+      properties:
+        specversion:
+          type: string
+          const: "1.0"
+        type:
+          type: string
+          const: com.todo.reminder.due
+        source:
+          type: string
+        id:
+          type: string
+          format: uuid
+          description: Event ID for idempotency
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          type: string
+          const: application/json
+        userid:
+          type: string
+          format: uuid
+        taskid:
+          type: integer
+        data:
+          $ref: '#/components/schemas/ReminderEventData'
+
+    ReminderEventData:
+      type: object
+      required:
+        - task_id
+        - user_id
+        - title
+        - due_at
+        - remind_at
+      properties:
+        task_id:
+          type: integer
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        due_at:
+          type: string
+          format: date-time
+        remind_at:
+          type: string
+          format: date-time
+        reminder_type:
+          type: string
+          enum: [before_due, overdue]
+          default: before_due
+
+    EventProcessingResponse:
+      type: object
+      required:
+        - status
+        - event_id
+      properties:
+        status:
+          type: string
+          enum: [processed, skipped, error]
+        event_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          description: Human-readable status message
+        processed_at:
+          type: string
+          format: date-time
+
+tags:
+  - name: Health
+    description: Health and readiness endpoints
+  - name: Dapr
+    description: Dapr integration endpoints
+  - name: Events
+    description: Event handling endpoints
+  - name: Observability
+    description: Monitoring and metrics
